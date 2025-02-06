@@ -115,15 +115,15 @@
 
       <div class="selection-group">
         <h2>Container Type</h2>
-        <button class="container-btn" onclick="selectContainer('20dc')">
+        <button class="container-btn" onclick="selectContainer('20dc', event)">
           20DC
         </button>
-        <button class="container-btn" onclick="selectContainer('40dc')">
-          40DC
-        </button>
-        <button class="container-btn" onclick="selectContainer('40hc')">
-          40HC
-        </button>
+ <button class="container-btn" onclick="selectContainer('40dc', event)">
+  40DC
+</button>
+<button class="container-btn" onclick="selectContainer('40hc', event)">
+  40HC
+</button>
       </div>
 
       <div class="selection-group">
@@ -364,20 +364,20 @@
         return container;
       }
 
-      function selectContainer(type) {
-        selectedContainer = type;
-        scene.children = scene.children.filter(
-          (child) => child.name !== "container"
-        );
+      function selectContainer(type, event) { // Add event parameter
+  selectedContainer = type;
+  scene.children = scene.children.filter(
+    (child) => child.name !== "container"
+  );
         const container = createContainer(containers[type]);
-        scene.add(container);
-        camera.lookAt(0, containers[type].height / 2, 0);
-        document
-          .querySelectorAll(".container-btn")
-          .forEach((btn) => btn.classList.remove("active"));
-          console.log(event)
-        event.target.classList.add("active");
-      }
+  scene.add(container);
+  camera.lookAt(0, containers[type].height / 2, 0);
+        if (event) {
+    document.querySelectorAll(".container-btn").forEach((btn) => 
+      btn.classList.remove("active"));
+    event.target.classList.add("active");
+  }
+}
 
       function addPalletGroup() {
         const group = document.createElement("div");
@@ -457,44 +457,35 @@
         return sprite;
       }
 
-      function calculate() {
-        clearVisualization();
-        const cont = containers[selectedContainer];
-        const groups = Array.from(document.querySelectorAll(".pallet-group"));
-        let allItems = [];
-        let resultHTML = "<h3>Results:</h3>";
-        let totalUsed = 0;
-        const usedSpace = [];
+function calculate() {
+  clearVisualization();
+  const cont = containers[selectedContainer];
+  const groups = Array.from(document.querySelectorAll(".pallet-group"));
+  let allItems = [];
+  let resultHTML = "<h3>Results:</h3>";
+  let totalUsed = 0;
+  const usedSpace = []; 
 
-        // Validate and collect items
+        // Validate and collect items (MODIFIED ORIENTATION SORTING)
         groups.forEach((group, groupIndex) => {
-          let length =
-            parseFloat(group.querySelector(".palletLength").value) || 0;
-          let width =
-            parseFloat(group.querySelector(".palletWidth").value) || 0;
-          const height =
-            parseFloat(group.querySelector(".palletHeight").value) || 0;
-          const quantity =
-            parseFloat(group.querySelector(".palletQty").value) || 0;
+          let length = parseFloat(group.querySelector(".palletLength").value) || 0;
+          let width = parseFloat(group.querySelector(".palletWidth").value) || 0;
+          const height = parseFloat(group.querySelector(".palletHeight").value) || 0;
+          const quantity = parseFloat(group.querySelector(".palletQty").value) || 0;
           const colorInput = group.querySelector(".palletColor");
-          const color = /^#[0-9A-F]{6}$/i.test(colorInput.value)
-            ? colorInput.value
-            : "#ff0000";
+          const color = /^#[0-9A-F]{6}$/i.test(colorInput.value) ? colorInput.value : "#ff0000";
           const stackable = group.querySelector(".stackable").checked;
           const rotatable = group.querySelector(".rotatable").checked;
-          const priority =
-            parseFloat(group.querySelector(".priority-input").value) || 1;
+          const priority = parseFloat(group.querySelector(".priority-input").value) || 1;
 
-          const orientations = rotatable
-            ? [
-                [length, width],
-                [width, length],
-              ]
-            : [[length, width]];
+          // Generate and sort orientations by smallest length first
+          let orientations = [[length, width]];
+          if (rotatable) orientations.push([width, length]);
+          orientations.sort((a, b) => a[0] - b[0]);
 
           for (let i = 0; i < quantity; i++) {
             allItems.push({
-              orientations,
+              orientations, 
               height,
               color,
               groupIndex,
@@ -503,6 +494,8 @@
             });
           }
         });
+		 
+
 
         // Sort items
         allItems.sort((a, b) => {
@@ -516,39 +509,28 @@
 
         // Place items
         allItems.forEach((item) => {
-          let placed = false;
-          for (const [l, w] of item.orientations) {
-            const position = findBestPosition(
-              l,
-              w,
-              item.height,
-              cont,
-              usedSpace,
-              item.stackable
-            );
-            if (position) {
-              placeItem(item, position, l, w);
-              usedSpace.push({
-                x: position.x - l / 2,
-                y: position.z - w / 2,
-                z: position.y - item.height / 2,
-                l,
-                w,
-                h: item.height,
-                groupIndex: item.groupIndex,
-              });
-              totalUsed += l * w * item.height;
-              placed = true;
-              break;
-            }
-          }
-          if (!placed) {
-            resultHTML += `<div style="color: red">Couldn't place item from group ${
-              item.groupIndex + 1
-            }</div>`;
-          }
-        });
-
+    let placed = false;
+    for (const [l, w] of item.orientations) {
+      const position = findBestPosition(
+        l,
+        w,
+        item.height,
+        cont,
+        usedSpace,
+        item.stackable
+      );
+      if (position) {
+        placeItem(item, position, l, w);
+        // REMOVE THIS DUPLICATE PUSH
+        totalUsed += l * w * item.height;
+        placed = true;
+        break;
+      }
+    }
+    if (!placed) {
+      resultHTML += `<div style="color: red">Couldn't place item from group ${item.groupIndex + 1}</div>`;
+    }
+  });
         // Display results
         groups.forEach((group, groupIndex) => {
           const color = group.querySelector(".palletColor").value;
@@ -583,23 +565,94 @@
 
         document.getElementById("result").innerHTML = resultHTML;
 
-        function findBestPosition(l, w, h, cont, usedSpace, stackable) {
-          const step = 1;
-          for (
-            let zLevel = 0;
-            zLevel <= cont.height - h;
-            zLevel += stackable ? h : cont.height
-          ) {
-            for (let x = 0; x <= cont.length - l; x += step) {
-              for (let y = 0; y <= cont.width - w; y += step) {
-                const position = {
-                  x: x + l / 2 - cont.length / 2,
-                  y: zLevel + h / 2,
-                  z: y + w / 2 - cont.width / 2,
-                };
+function findBestPosition(l, w, h, cont, usedSpace, stackable) {
+  const step = 5; // Keep small step for precision
+  if (stackable) {
+    // First try to find existing columns that can accommodate this pallet type
+    const existingColumns = [];
+    
+    // Analyze existing stacks
+    usedSpace.forEach(space => {
+      if (space.stackable) {
+        const key = `${space.containerX}-${space.containerY}-${space.l}-${space.w}`;
+        if (!existingColumns.some(col => col.key === key)) {
+          existingColumns.push({
+            x: space.containerX,
+            y: space.containerY,
+            l: space.l,
+            w: space.w,
+            maxZ: space.containerZ + space.h
+          });
+        }
+      }
+    });
 
-                if (!isColliding(position, l, w, h, usedSpace)) {
-                  return position;
+    // Check existing columns first
+    for (const column of existingColumns) {
+      if (l === column.l && w === column.w) { // Match column dimensions
+        if (column.maxZ + h <= cont.height) {
+          const position = {
+            x: column.x + l/2 - cont.length/2,
+            y: column.maxZ + h/2,
+            z: column.y + w/2 - cont.width/2,
+            containerX: column.x,
+            containerY: column.y,
+            containerZ: column.maxZ
+          };
+          
+          if (!isColliding(position, l, w, h, usedSpace)) {
+            return position;
+          }
+        }
+      }
+    }
+
+    // If no existing column found, search for new positions more efficiently
+    for (let x = 0; x <= cont.length - l; x += step) {
+      for (let y = 0; y <= cont.width - w; y += step) {
+        let maxZ = 0;
+        
+        // Find maximum height in this area considering different pallet types
+        usedSpace.forEach(space => {
+          if (x < space.containerX + space.l &&
+              x + l > space.containerX &&
+              y < space.containerY + space.w &&
+              y + w > space.containerY) {
+            maxZ = Math.max(maxZ, space.containerZ + space.h);
+          }
+        });
+
+        if (maxZ + h <= cont.height) {
+          const position = {
+            x: x + l/2 - cont.length/2,
+            y: maxZ + h/2,
+            z: y + w/2 - cont.width/2,
+            containerX: x,
+            containerY: y,
+            containerZ: maxZ
+          };
+          
+          if (!isColliding(position, l, w, h, usedSpace)) {
+            return position;
+          }
+        }
+      }
+    }
+  } else {
+            // Non-stackable items: check floor first
+            for (let x = 0; x <= cont.length - l; x += step) {
+        for (let y = 0; y <= cont.width - w; y += step) {
+          const position = {
+            x: x + l/2 - cont.length/2, // Three.js scene coordinates
+            y: h/2,
+            z: y + w/2 - cont.width/2,
+            // NEW: Store container-space coordinates for collision detection
+            containerX: x,
+            containerY: y,
+            containerZ: 0
+          };
+		   if (!isColliding(position, l, w, h, usedSpace)) {
+            return position;
                 }
               }
             }
@@ -607,45 +660,71 @@
           return null;
         }
 
+
         function isColliding(pos, l, w, h, usedSpace) {
-          return usedSpace.some((space) => {
-            return !(
-              pos.x + l / 2 <= space.x ||
-              pos.x - l / 2 >= space.x + space.l ||
-              pos.z + w / 2 <= space.y ||
-              pos.z - w / 2 >= space.y + space.w ||
-              pos.y + h / 2 <= space.z ||
-              pos.y - h / 2 >= space.z + space.h
-            );
-          });
-        }
+    return usedSpace.some(space => {
+      // Use container-space coordinates for accurate collision detection
+      const spaceX1 = space.containerX;
+      const spaceX2 = space.containerX + space.l;
+      const spaceY1 = space.containerY;
+      const spaceY2 = space.containerY + space.w;
+      const spaceZ1 = space.containerZ;
+      const spaceZ2 = space.containerZ + space.h;
+
+      const itemX1 = pos.containerX;
+      const itemX2 = pos.containerX + l;
+      const itemY1 = pos.containerY;
+      const itemY2 = pos.containerY + w;
+      const itemZ1 = pos.containerZ;
+      const itemZ2 = pos.containerZ + h;
+
+      // Check for overlap in all dimensions
+      return (
+        itemX1 < spaceX2 &&
+        itemX2 > spaceX1 &&
+        itemY1 < spaceY2 &&
+        itemY2 > spaceY1 &&
+        itemZ1 < spaceZ2 &&
+        itemZ2 > spaceZ1
+      );
+    });
+  }
 
         function placeItem(item, position, l, w) {
-          const pallet = new THREE.Mesh(
-            new THREE.BoxGeometry(l, item.height, w),
-            new THREE.MeshPhongMaterial({
-              color: item.color,
-              transparent: true,
-              opacity: 0.8,
-            })
-          );
-          pallet.position.set(position.x, position.y, position.z);
-          scene.add(pallet);
+  // ... existing visualization code ...
+     const pallet = new THREE.Mesh(
+      new THREE.BoxGeometry(l, item.height, w),
+      new THREE.MeshPhongMaterial({
+        color: item.color,
+        transparent: true,
+        opacity: 0.8,
+      })
+    );
+    pallet.position.set(position.x, position.y, position.z);
+    scene.add(pallet);
 
-          const label = createNumberLabel(item.groupIndex + 1);
-          label.position.copy(pallet.position);
-          label.position.y += item.height / 2 + 10;
-          scene.add(label);
-        }
-        addLights()
-      }
+    const label = createNumberLabel(item.groupIndex + 1);
+    label.position.copy(pallet.position);
+    label.position.y += item.height / 2 + 10;
+    scene.add(label);
 
+  // Store placement data in usedSpace array
+  usedSpace.push({
+      containerX: position.containerX,
+      containerY: position.containerY,
+      containerZ: position.containerZ,
+      l: l,
+      w: w,
+      h: item.height,
+      groupIndex: item.groupIndex
+    });
+  }
+  }
       function animate() {
         requestAnimationFrame(animate);
         controls.update();
         renderer.render(scene, camera);
       }
-
       window.onresize = () => {
         camera.aspect = (window.innerWidth - 440) / window.innerHeight;
         camera.updateProjectionMatrix();
