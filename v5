@@ -174,7 +174,8 @@
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
   
-  <script>
+ 
+<script>
 const containers = {
   '20dc': { length: 590, width: 235, height: 239 },
   '40dc': { length: 1203, width: 235, height: 239 },
@@ -183,19 +184,20 @@ const containers = {
 
 let selectedContainer = '20dc';
 let scene, camera, renderer, controls;
-let ambientLight, directionalLight;
-function initThreeJS() {
 
-scene = new THREE.Scene();
+function initThreeJS() {
+    scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87CEEB);
 
     // Enhanced lighting
-    ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
-    directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
     directionalLight.position.set(500, 1000, 500);
     directionalLight.castShadow = true;
+    directionalLight.shadow.mapSize.width = 2048;
+    directionalLight.shadow.mapSize.height = 2048;
     scene.add(directionalLight);
 
     // Camera setup
@@ -207,19 +209,15 @@ scene = new THREE.Scene();
     renderer.shadowMap.enabled = true;
     document.getElementById('threejs-container').appendChild(renderer.domElement);
 
-    // Controls
     controls = new THREE.OrbitControls(camera, renderer.domElement);
-controls.minDistance = containers[selectedContainer].length * 0.5;
-controls.maxDistance = containers[selectedContainer].length * 3;
-controls.enablePan = true;
-
-    // Initial container (bright red for visibility)
+    controls.minDistance = 100;
+    controls.maxDistance = 3000;
+    
     createContainer(containers[selectedContainer]);
     updateCameraPosition();
-    
-    // Start animation loop
     animate();
 }
+
 
 function updateCameraPosition() {
 const cont = containers[selectedContainer];
@@ -239,18 +237,16 @@ const cont = containers[selectedContainer];
 }
 
     function createContainer(cont) {
-    // Clear ALL existing containers
     scene.children = scene.children.filter(child => child.name !== 'container');
     
-    // Container material (gray)
+
+    const container = new THREE.Group();
+    const wallThickness = 20; // Increased wall thickness
     const material = new THREE.MeshStandardMaterial({ 
         color: 0x808080,
         metalness: 0.3,
         roughness: 0.8
     });
-
-    const container = new THREE.Group();
-    const wallThickness = 1;
 
     // Floor (slightly transparent)
     const floor = new THREE.Mesh(
@@ -260,8 +256,24 @@ const cont = containers[selectedContainer];
     floor.position.y = wallThickness/2;
     floor.receiveShadow = true;
     container.add(floor);
+	
+	const leftWall = new THREE.Mesh(
+        new THREE.BoxGeometry(wallThickness, cont.height, cont.width),
+        material
+    );
+    leftWall.position.set(-cont.length/2 + wallThickness/2, cont.height/2, 0);
+    container.add(leftWall);
+ const rightWall = leftWall.clone();
+    rightWall.position.x = cont.length/2 - wallThickness/2;
+    container.add(rightWall);
 
-    // ... (rest of container code remains same)
+    const backWall = new THREE.Mesh(
+        new THREE.BoxGeometry(cont.length, cont.height, wallThickness),
+        material
+    );
+    backWall.position.set(0, cont.height/2, -cont.width/2 + wallThickness/2);
+    container.add(backWall);
+
     container.name = 'container';
     scene.add(container);
 }
@@ -331,67 +343,72 @@ const cont = containers[selectedContainer];
 
     function calculate() {
     try {
-        // Clear previous pallets
         scene.children = scene.children.filter(child => 
             child.name === 'container' || 
             child.type.includes('Light')
         );
 
 
+
         const cont = containers[selectedContainer];
 const groups = Array.from(document.querySelectorAll('.pallet-group'))
             .map(group => {
-                const inputs = group.querySelectorAll('input:not([type="color"]):not([type="checkbox"])');
-                const checkboxes = group.querySelectorAll('[type="checkbox"]');
-                
+                const inputs = group.querySelectorAll('input');
                 return {
                     priority: parseInt(group.querySelector('.priority-input').value) || 1,
                     l: parseFloat(inputs[0].value) || 100,
                     w: parseFloat(inputs[1].value) || 100,
                     h: parseFloat(inputs[2].value) || 100,
                     qty: parseInt(inputs[3].value) || 1,
-                    color: group.querySelector('[type="color"]').value || '#ff0000', // Fixed color input
-                    stackable: checkboxes[0].checked,
-                    rotatable: checkboxes[1].checked
+                    color: group.querySelector('[type="color"]').value,
+                    stackable: group.querySelector('.stackable').checked,
+                    rotatable: group.querySelector('.rotatable').checked
                 };
             })
             .sort((a, b) => a.priority - b.priority);
 
-        let currentPosition = {
-            x: -cont.length/2,  // Start from leftmost position
+
+                let currentPosition = {
+            x: -cont.length/2 + 10,  // Start with offset
             y: 0,
-            z: -cont.width/2
+            z: -cont.width/2 + 10
         };
 
         groups.forEach(group => {
             let { l, w, h, qty, color, stackable, rotatable } = group;
             let remainingQty = qty;
 
-            // Consider rotation if allowed
-            if (rotatable && w > l) {
-                [l, w] = [w, l]; // Swap dimensions
-            }
-
-            // Calculate maximum possible stack height
-            const maxStack = stackable ? Math.floor(cont.height / h) : 1;
-            const palletFootprint = l * w;
+            if (rotatable && w > l) [l, w] = [w, l];
+            
+            const maxStack = stackable ? Math.floor((cont.height - 20) / h) : 1;
+            const xMax = cont.length/2 - 10;
+            const zMax = cont.width/2 - 10;
 
             while (remainingQty > 0) {
-                // Calculate how many fit in current layer
-                const xFit = Math.floor((cont.length/2 - currentPosition.x) / l);
-                const zFit = Math.floor((cont.width/2 - currentPosition.z) / w);
+                const xFit = Math.floor((xMax - currentPosition.x) / l);
+                const zFit = Math.floor((zMax - currentPosition.z) / w);
                 const layerCapacity = xFit * zFit;
                 
-                const stackHeight = Math.min(maxStack, remainingQty);
-                const stackQty = Math.min(layerCapacity * stackHeight, remainingQty);
+                if (layerCapacity <= 0) {
+                    currentPosition.x = -cont.length/2 + 10;
+                    currentPosition.z += w;
+                    if (currentPosition.z + w > zMax) {
+                        currentPosition.z = -cont.width/2 + 10;
+                        currentPosition.y += h;
+                    }
+                    continue;
+                }
 
-                if (stackQty <= 0) break;
-
-                // Place pallets in current position
+                const stackQty = Math.min(layerCapacity * maxStack, remainingQty);
+                
                 for (let i = 0; i < stackQty; i++) {
-                    const xPos = currentPosition.x + l * (i % xFit);
-                    const zPos = currentPosition.z + w * Math.floor((i % layerCapacity) / xFit);
-                    const yPos = currentPosition.y + h * Math.floor(i / layerCapacity);
+                    const col = i % xFit;
+                    const row = Math.floor(i / xFit) % zFit;
+                    const layer = Math.floor(i / (xFit * zFit));
+                    
+                    const xPos = currentPosition.x + col * l;
+                    const zPos = currentPosition.z + row * w;
+                    const yPos = currentPosition.y + layer * h;
 
                     placeItem({
                         l, w, h,
@@ -402,31 +419,17 @@ const groups = Array.from(document.querySelectorAll('.pallet-group'))
                     });
                 }
 
-                // Update remaining quantity
                 remainingQty -= stackQty;
-
-                // Update current position
-                currentPosition.x += l * xFit;
-                if (currentPosition.x + l > cont.length/2) {
-                    currentPosition.x = -cont.length/2;
-                    currentPosition.z += w * zFit;
-                }
-                
-                if (currentPosition.z + w > cont.width/2) {
-                    currentPosition.z = -cont.width/2;
-                    currentPosition.y += h * stackHeight;
-                }
+                currentPosition.x += xFit * l;
             }
         });
 
-        // Update camera view
-        controls.target.set(0, cont.height/2, 0);
         controls.update();
-
     } catch (error) {
         console.error("Calculation error:", error);
     }
 }
+
 function placeItem(item) {
     const color = new THREE.Color();
     try {
