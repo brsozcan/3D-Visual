@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>3D Loading Calculator</title>
+  <style>
+    body { 
+      font-family: Arial, sans-serif; 
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      gap: 20px;
+      background: #f0f0f0;
+    }
+    .config-panel {
+      width: 400px;
+      background: white;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      height: 100vh;
+      overflow-y: auto;
+    }
+    .selection-group {
+      margin: 15px 0;
+      border: 1px solid #ddd;
+      padding: 15px;
+      border-radius: 5px;
+    }
+    .container-btn {
+      padding: 10px;
+      background: #f0f0f0;
+      border: 2px solid #ccc;
+      cursor: pointer;
+      margin: 5px;
+      width: 100px;
+      transition: all 0.3s;
+    }
+    .container-btn:hover {
+      background: #e0e0e0;
+    }
+    .active {
+      background: #4CAF50 !important;
+      color: white !important;
+      border-color: #4CAF50 !important;
+    }
+    #threejs-container {
+      flex: 1;
+      height: 100vh;
+      background: #87CEEB;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    .pallet-group {
+      border: 1px solid #ddd;
+      padding: 15px;
+      margin: 10px 0;
+      border-radius: 5px;
+      position: relative;
+    }
+    .input-group {
+      margin: 10px 0;
+    }
+    .input-group label {
+      display: block;
+      margin-bottom: 5px;
+      font-weight: bold;
+    }
+    input[type="number"], input[type="color"] {
+      width: 100%;
+      padding: 8px;
+      border: 1px solid #ddd;
+      border-radius: 4px;
+    }
+    .remove-btn {
+      background: #ff4444;
+      color: white;
+      border: none;
+      padding: 5px 10px;
+      margin-top: 10px;
+      border-radius: 4px;
+      cursor: pointer;
+      float: right;
+    }
+    #result {
+      margin-top: 20px;
+      padding: 15px;
+      background: #fff;
+      border-radius: 5px;
+    }
+    .options-group {
+      display: flex;
+      gap: 15px;
+      margin: 10px 0;
+    }
+    .options-group label {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .priority-input {
+      width: 60px !important;
+      margin-left: 10px;
+    }
+    .visualization-controls {
+      margin-top: 10px;
+      display: flex;
+      gap: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div class="config-panel">
+    <h1>Loading Calculator</h1>
+    
+    <div class="selection-group">
+      <h2>Container Type</h2>
+      <button class="container-btn active" onclick="selectContainer('20dc', event)">20DC</button>
+      <button class="container-btn" onclick="selectContainer('40dc', event)">40DC</button>
+      <button class="container-btn" onclick="selectContainer('40hc', event)">40HC</button>
+    </div>
+
+    <div class="selection-group">
+      <h2>Pallet Configuration</h2>
+      <div id="palletGroups">
+        <div class="pallet-group">
+          <div class="input-group">
+            <label>Priority: <input type="number" class="priority-input" value="1" min="1"></label>
+            <label>Dimensions (L×W×H cm)</label>
+            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
+              <input type="number" class="palletLength" placeholder="Length" value="120">
+              <input type="number" class="palletWidth" placeholder="Width" value="80">
+              <input type="number" class="palletHeight" placeholder="Height" value="100">
+            </div>
+          </div>
+          <div class="input-group">
+            <label>Quantity</label>
+            <input type="number" class="palletQty" value="5">
+          </div>
+          <div class="input-group">
+            <label>Color</label>
+            <input type="color" class="palletColor" value="#ff0000">
+          </div>
+          <div class="options-group">
+            <label><input type="checkbox" class="stackable"> Stackable</label>
+            <label><input type="checkbox" class="rotatable"> Rotatable</label>
+          </div>
+          <button class="remove-btn" onclick="removePalletGroup(this)">Remove</button>
+        </div>
+      </div>
+      <button onclick="addPalletGroup()" style="width: 100%; padding: 10px; margin-top: 10px;">
+        + Add Pallet Type
+      </button>
+    </div>
+
+    <div class="selection-group">
+      <div class="visualization-controls">
+        <button onclick="calculate()" style="width: 100%; padding: 15px; background: #4CAF50; color: white; border: none; border-radius: 5px; cursor: pointer;">
+          Calculate & Visualize
+        </button>
+        <button onclick="clearVisualization()" style="background: #ff4444; color: white; padding: 15px; border: none; border-radius: 5px; cursor: pointer;">
+          Clear
+        </button>
+        <button onclick="toggleContainerVisibility()" style="padding: 15px; border: none; border-radius: 5px; cursor: pointer;">
+          Toggle Container
+        </button>
+      </div>
+    </div>
+    
+    <div id="result"></div>
+  </div>
+
+  <div id="threejs-container"></div>
+
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+  
+  <script>
+const containers = {
+  '20dc': { length: 590, width: 235, height: 239 },
+  '40dc': { length: 1203, width: 235, height: 239 },
+  '40hc': { length: 1203, width: 235, height: 269 }
+};
+
+let selectedContainer = '20dc';
+let scene, camera, renderer, controls;
+let ambientLight, directionalLight;
+function initThreeJS() {
+
+scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB);
+
+    // Enhanced lighting
+    ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
+    scene.add(ambientLight);
+
+    directionalLight = new THREE.DirectionalLight(0xffffff, 1.5);
+    directionalLight.position.set(500, 1000, 500);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+
+    // Camera setup
+    camera = new THREE.PerspectiveCamera(75, (window.innerWidth - 440)/window.innerHeight, 1, 5000);
+    
+    // Renderer
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth - 440, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.getElementById('threejs-container').appendChild(renderer.domElement);
+
+    // Controls
+    controls = new THREE.OrbitControls(camera, renderer.domElement);
+controls.minDistance = containers[selectedContainer].length * 0.5;
+controls.maxDistance = containers[selectedContainer].length * 3;
+controls.enablePan = true;
+
+    // Initial container (bright red for visibility)
+    createContainer(containers[selectedContainer]);
+    updateCameraPosition();
+    
+    // Start animation loop
+    animate();
+}
+
+function updateCameraPosition() {
+const cont = containers[selectedContainer];
+    camera.position.set(
+        cont.length * 2,  // Better initial distance
+        cont.height * 1.5,
+        cont.width * 2
+    );
+    controls.target.set(0, cont.height/2, 0);
+    controls.update();
+}
+
+   function animate() {
+    requestAnimationFrame(animate);
+    controls.update();
+    renderer.render(scene, camera);
+}
+
+    function createContainer(cont) {
+    // Clear ALL existing containers
+    scene.children = scene.children.filter(child => child.name !== 'container');
+    
+    // Container material (gray)
+    const material = new THREE.MeshStandardMaterial({ 
+        color: 0x808080,
+        metalness: 0.3,
+        roughness: 0.8
+    });
+
+    const container = new THREE.Group();
+    const wallThickness = 1;
+
+    // Floor (slightly transparent)
+    const floor = new THREE.Mesh(
+        new THREE.BoxGeometry(cont.length, wallThickness, cont.width),
+        material
+    );
+    floor.position.y = wallThickness/2;
+    floor.receiveShadow = true;
+    container.add(floor);
+
+    // ... (rest of container code remains same)
+    container.name = 'container';
+    scene.add(container);
+}
+
+    function selectContainer(type, event) {
+    selectedContainer = type;
+    createContainer(containers[type]);
+    updateCameraPosition();
+    
+    // Update button states
+    const buttons = document.querySelectorAll('.container-btn');
+    buttons.forEach(btn => btn.classList.remove('active'));
+    event.target.classList.add('active');
+}
+
+    function addPalletGroup() {
+      const group = document.createElement('div');
+      group.className = 'pallet-group';
+      const randomColor = '#' + Math.floor(Math.random()*16777215)
+        .toString(16)
+        .padStart(6, '0')
+        .toLowerCase();
+      
+      group.innerHTML = `
+        <div class="input-group">
+          <label>Priority: <input type="number" class="priority-input" value="1" min="1"></label>
+          <label>Dimensions (L×W×H cm)</label>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
+            <input type="number" class="palletLength" placeholder="Length">
+            <input type="number" class="palletWidth" placeholder="Width">
+            <input type="number" class="palletHeight" placeholder="Height">
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Quantity</label>
+          <input type="number" class="palletQty" value="1">
+        </div>
+        <div class="input-group">
+          <label>Color</label>
+          <input type="color" class="palletColor" value="${randomColor}">
+        </div>
+        <div class="options-group">
+          <label><input type="checkbox" class="stackable"> Stackable</label>
+          <label><input type="checkbox" class="rotatable"> Rotatable</label>
+        </div>
+        <button class="remove-btn" onclick="removePalletGroup(this)">Remove</button>
+      `;
+      document.getElementById('palletGroups').appendChild(group);
+    }
+
+    function removePalletGroup(btn) {
+      btn.parentElement.remove();
+    }
+
+    function clearVisualization() {
+      scene.children = scene.children.filter(child => 
+        child.name === 'container' || 
+        child === ambientLight || 
+        child === directionalLight
+      );
+    }
+
+    function toggleContainerVisibility() {
+      const container = scene.children.find(child => child.name === 'container');
+      if (container) container.visible = !container.visible;
+    }
+
+    function calculate() {
+    try {
+        // Clear previous pallets
+        scene.children = scene.children.filter(child => 
+            child.name === 'container' || 
+            child.type.includes('Light')
+        );
+
+
+        const cont = containers[selectedContainer];
+const groups = Array.from(document.querySelectorAll('.pallet-group'))
+            .map(group => {
+                const inputs = group.querySelectorAll('input:not([type="color"]):not([type="checkbox"])');
+                const checkboxes = group.querySelectorAll('[type="checkbox"]');
+                
+                return {
+                    priority: parseInt(group.querySelector('.priority-input').value) || 1,
+                    l: parseFloat(inputs[0].value) || 100,
+                    w: parseFloat(inputs[1].value) || 100,
+                    h: parseFloat(inputs[2].value) || 100,
+                    qty: parseInt(inputs[3].value) || 1,
+                    color: group.querySelector('[type="color"]').value || '#ff0000', // Fixed color input
+                    stackable: checkboxes[0].checked,
+                    rotatable: checkboxes[1].checked
+                };
+            })
+            .sort((a, b) => a.priority - b.priority);
+
+        let currentPosition = {
+            x: -cont.length/2,  // Start from leftmost position
+            y: 0,
+            z: -cont.width/2
+        };
+
+        groups.forEach(group => {
+            let { l, w, h, qty, color, stackable, rotatable } = group;
+            let remainingQty = qty;
+
+            // Consider rotation if allowed
+            if (rotatable && w > l) {
+                [l, w] = [w, l]; // Swap dimensions
+            }
+
+            // Calculate maximum possible stack height
+            const maxStack = stackable ? Math.floor(cont.height / h) : 1;
+            const palletFootprint = l * w;
+
+            while (remainingQty > 0) {
+                // Calculate how many fit in current layer
+                const xFit = Math.floor((cont.length/2 - currentPosition.x) / l);
+                const zFit = Math.floor((cont.width/2 - currentPosition.z) / w);
+                const layerCapacity = xFit * zFit;
+                
+                const stackHeight = Math.min(maxStack, remainingQty);
+                const stackQty = Math.min(layerCapacity * stackHeight, remainingQty);
+
+                if (stackQty <= 0) break;
+
+                // Place pallets in current position
+                for (let i = 0; i < stackQty; i++) {
+                    const xPos = currentPosition.x + l * (i % xFit);
+                    const zPos = currentPosition.z + w * Math.floor((i % layerCapacity) / xFit);
+                    const yPos = currentPosition.y + h * Math.floor(i / layerCapacity);
+
+                    placeItem({
+                        l, w, h,
+                        color,
+                        x: xPos + l/2,
+                        y: yPos + h/2,
+                        z: zPos + w/2
+                    });
+                }
+
+                // Update remaining quantity
+                remainingQty -= stackQty;
+
+                // Update current position
+                currentPosition.x += l * xFit;
+                if (currentPosition.x + l > cont.length/2) {
+                    currentPosition.x = -cont.length/2;
+                    currentPosition.z += w * zFit;
+                }
+                
+                if (currentPosition.z + w > cont.width/2) {
+                    currentPosition.z = -cont.width/2;
+                    currentPosition.y += h * stackHeight;
+                }
+            }
+        });
+
+        // Update camera view
+        controls.target.set(0, cont.height/2, 0);
+        controls.update();
+
+    } catch (error) {
+        console.error("Calculation error:", error);
+    }
+}
+function placeItem(item) {
+    const color = new THREE.Color();
+    try {
+        // Validate and format color
+        const colorValue = item.color.startsWith('#') ? item.color : `#${item.color}`;
+        if (!/^#([0-9A-F]{3}){1,2}$/i.test(colorValue)) throw 'Invalid color';
+        color.setStyle(colorValue);
+    } catch {
+        color.set(0xff0000); // Fallback to red
+ }
+    const pallet = new THREE.Mesh(
+        new THREE.BoxGeometry(item.l, item.h, item.w),
+        new THREE.MeshStandardMaterial({
+            color: color,
+            metalness: 0.1,
+            roughness: 0.8
+        })
+    );
+
+    pallet.position.set(item.x, item.y, item.z);
+    pallet.castShadow = true;
+    pallet.receiveShadow = true;
+    scene.add(pallet);
+}
+
+    // Initialize the app
+	window.onload = () => {
+    initThreeJS();
+    window.onresize = () => {
+        camera.aspect = (window.innerWidth - 440)/window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth - 440, window.innerHeight);
+    };
+};
+    initThreeJS();
+  </script>
+</body>
+</html>
