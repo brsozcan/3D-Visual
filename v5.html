@@ -131,10 +131,11 @@
         <div id="palletGroups">
           <div class="pallet-group">
             <div class="input-group">
-              <label
-                >Priority:
-                <input type="number" class="priority-input" value="1" min="1"
-              /></label>
+              <label>Pallet Name (optional)</label>
+              <input type="text" class="palletName" placeholder="Pallet 1">
+            </div>
+            <div class="input-group">
+              <label>Priority:<input type="number" class="priority-input" value="1" min="1"/></label>
               <label>Dimensions (L×W×H cm)</label>
               <div
                 style="
@@ -310,8 +311,7 @@
         const container = new THREE.Group();
         const wallMaterial = new THREE.MeshPhongMaterial({
           color: 0x3a3a3a,
-          metalness: 0.2,
-          roughness: 0.6,
+          shininess: 10
         });
         const wallThickness = 20;
 
@@ -382,12 +382,13 @@
       function addPalletGroup() {
         const group = document.createElement("div");
         group.className = "pallet-group";
-        const randomColor =
-          "#" +
-          Math.floor(Math.random() * 16777215)
-            .toString(16)
-            .padStart(6, "0");
+        const randomColor ="#" + Math.floor(Math.random() * 16777215).toString(16).padStart(6, "0");
+        const groupIndex = document.querySelectorAll(".pallet-group").length + 1;
         group.innerHTML = `
+        <div class="input-group">
+          <label> Pallet Name (optional) </label>
+          <input type="text" class="palletName" placeholder="Pallet ${groupIndex}">
+        </div>
         <div class="input-group">
           <label>Priority: <input type="number" class="priority-input" value="1" min="1"></label>
           <label>Dimensions (L×W×H cm)</label>
@@ -432,6 +433,35 @@
         });
       }
 
+      function createTextLabel(text) {
+        const canvas = document.createElement("canvas");
+        const size = 256;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, size / 2.3, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255, 255, 255, 1)"; // 🔼 Tam opaklık ekledik
+        ctx.fill();
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 5; // 🔼 Kenar çizgisi ekledik
+        ctx.stroke();
+
+        ctx.fillStyle = "#000";
+        ctx.font = "bold 48px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, size / 2, size / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(75, 75, 1); // Yazıyı biraz büyütelim
+        return sprite;
+      }
+
+
       function createNumberLabel(number) {
         const canvas = document.createElement("canvas");
         const size = 128;
@@ -469,6 +499,8 @@ function calculate() {
 
         // Validate and collect items (MODIFIED ORIENTATION SORTING)
         groups.forEach((group, groupIndex) => {
+          const nameInput = group.querySelector(".palletName").value.trim();
+          const palletName = nameInput || `Pallet ${groupIndex + 1}`;
           let length = parseFloat(group.querySelector(".palletLength").value) || 0;
           let width = parseFloat(group.querySelector(".palletWidth").value) || 0;
           const height = parseFloat(group.querySelector(".palletHeight").value) || 0;
@@ -492,6 +524,7 @@ function calculate() {
               groupIndex,
               stackable,
               priority,
+              name: palletName
             });
           }
         });
@@ -510,20 +543,20 @@ function calculate() {
 
         // Place items
         allItems.forEach((item) => {
-    let placed = false;
-    for (const [l, w] of item.orientations) {
-      const position = findBestPosition(l, w, item.height, cont, usedSpace, item.stackable);
-      if (position) {
-        placeItem(item, position, l, w);
-        totalUsed += l * w * item.height;
-        placed = true;
-        break;
-      }
-    }
-    if (!placed) {
-      resultHTML += `<div style="color: red">Couldn't place item from group ${item.groupIndex + 1}</div>`;
-    }
-  });
+          let placed = false;
+          for (const [l, w] of item.orientations) {
+            const position = findBestPosition(l, w, item.height, cont, usedSpace, item.stackable);
+            if (position) {
+              placeItem(item, position, l, w);
+              totalUsed += l * w * item.height;
+              placed = true;
+              break;
+            }
+          }
+          if (!placed) {
+            resultHTML += `<div style="color: red">Couldn't place item from group ${item.groupIndex + 1}</div>`;
+          }
+        });
         // Display results
         groups.forEach((group, groupIndex) => {
           const color = group.querySelector(".palletColor").value;
@@ -688,7 +721,7 @@ function calculate() {
   pallet.position.set(position.x, position.y, position.z);
   scene.add(pallet);
 
-  const label = createNumberLabel(item.groupIndex + 1);
+  const label = createTextLabel(item.name);
   label.position.copy(pallet.position);
   label.position.y += item.height / 2 + 10;
   scene.add(label);
