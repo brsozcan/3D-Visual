@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>Advanced 3D Loading Calculator</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        display: flex;
+        gap: 20px;
+        background: #f0f0f0;
+      }
+      .config-panel {
+        width: 400px;
+        background: white;
+        padding: 20px;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        height: 100vh;
+        overflow-y: auto;
+      }
+      .selection-group {
+        margin: 15px 0;
+        border: 1px solid #ddd;
+        padding: 15px;
+        border-radius: 5px;
+      }
+      .container-btn {
+        padding: 10px;
+        background: #f0f0f0;
+        border: 2px solid #ccc;
+        cursor: pointer;
+        margin: 5px;
+        width: 100px;
+        transition: all 0.3s;
+      }
+      .container-btn:hover {
+        background: #e0e0e0;
+      }
+      .active {
+        background: #4caf50 !important;
+        color: white !important;
+        border-color: #4caf50 !important;
+      }
+      #threejs-container {
+        flex: 1;
+        height: 100vh;
+        background: #87ceeb;
+        border-radius: 8px;
+        box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+      }
+      .pallet-group {
+        border: 1px solid #ddd;
+        padding: 15px;
+        margin: 10px 0;
+        border-radius: 5px;
+        position: relative;
+      }
+      .input-group {
+        margin: 10px 0;
+      }
+      .input-group label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+      input[type="number"],
+      input[type="color"] {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+      }
+      .remove-btn {
+        background: #ff4444;
+        color: white;
+        border: none;
+        padding: 5px 10px;
+        margin-top: 10px;
+        border-radius: 4px;
+        cursor: pointer;
+        float: right;
+      }
+      #result {
+        margin-top: 20px;
+        padding: 15px;
+        background: #fff;
+        border-radius: 5px;
+      }
+      .options-group {
+        display: flex;
+        gap: 15px;
+        margin: 10px 0;
+      }
+      .options-group label {
+        display: flex;
+        align-items: center;
+        gap: 5px;
+      }
+      .priority-input {
+        width: 60px !important;
+        margin-left: 10px;
+      }
+      .visualization-controls {
+        margin-top: 10px;
+        display: flex;
+        gap: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="config-panel">
+      <h1>Loading Calculator</h1>
+
+      <div class="selection-group">
+        <h2>Container Type</h2>
+        <button class="container-btn" onclick="selectContainer('20dc', event)">
+          20DC
+        </button>
+ <button class="container-btn" onclick="selectContainer('40dc', event)">
+  40DC
+</button>
+<button class="container-btn" onclick="selectContainer('40hc', event)">
+  40HC
+</button>
+      </div>
+
+      <div class="selection-group">
+        <h2>Pallet Configuration</h2>
+        <div id="palletGroups">
+          <div class="pallet-group">
+            <div class="input-group">
+              <label>Pallet Name (optional)</label>
+              <input type="text" class="palletName" placeholder="Pallet 1">
+            </div>
+            <div class="input-group">
+              <label>Priority:<input type="number" class="priority-input" value="1" min="1"/></label>
+              <label>Dimensions (L×W×H cm)</label>
+              <div
+                style="
+                  display: grid;
+                  grid-template-columns: repeat(3, 1fr);
+                  gap: 5px;
+                "
+              >
+                <input
+                  type="number"
+                  class="palletLength"
+                  placeholder="Length"
+                  value="120"
+                />
+                <input
+                  type="number"
+                  class="palletWidth"
+                  placeholder="Width"
+                  value="80"
+                />
+                <input
+                  type="number"
+                  class="palletHeight"
+                  placeholder="Height"
+                  value="100"
+                />
+              </div>
+            </div>
+            <div class="input-group">
+              <label>Quantity</label>
+              <input type="number" class="palletQty" value="5" />
+            </div>
+            <div class="input-group">
+              <label>Color</label>
+              <input type="color" class="palletColor" value="#ff0000" />
+            </div>
+            <div class="options-group">
+              <label
+                ><input type="checkbox" class="stackable" /> Stackable</label
+              >
+              <label
+                ><input type="checkbox" class="rotatable" /> Rotatable</label
+              >
+            </div>
+            <button class="remove-btn" onclick="removePalletGroup(this)">
+              Remove
+            </button>
+          </div>
+        </div>
+        <button
+          onclick="addPalletGroup()"
+          style="width: 100%; padding: 10px; margin-top: 10px"
+        >
+          + Add Pallet Type
+        </button>
+      </div>
+
+      <div class="selection-group">
+        <div class="visualization-controls">
+          <button
+            onclick="calculate()"
+            style="
+              width: 100%;
+              padding: 15px;
+              background: #4caf50;
+              color: white;
+              border: none;
+              border-radius: 5px;
+              cursor: pointer;
+            "
+          >
+            Calculate & Visualize
+          </button>
+          <button
+            onclick="clearVisualization()"
+            style="
+              background: #ff4444;
+              color: white;
+              padding: 15px;
+              border: none;
+              border-radius: 5px;
+              cursor: pointer;
+            "
+          >
+            Clear
+          </button>
+          <button
+            onclick="toggleContainerVisibility()"
+            style="
+              padding: 15px;
+              border: none;
+              border-radius: 5px;
+              cursor: pointer;
+            "
+          >
+            Toggle Container
+          </button>
+        </div>
+      </div>
+
+      <div id="result"></div>
+    </div>
+
+    <div id="threejs-container"></div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.132.2/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+      const containers = {
+        "20dc": { length: 590, width: 235, height: 239 },
+        "40dc": { length: 1203, width: 235, height: 239 },
+        "40hc": { length: 1203, width: 235, height: 269 },
+      };
+
+      let selectedContainer = "20dc";
+      let scene, camera, renderer, controls;
+      let containerVisible = true;
+
+      function initThreeJS() {
+        scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x87ceeb); // Gökyüzü rengi
+
+        // **Kamera Ayarları**
+        camera = new THREE.PerspectiveCamera(
+          75,
+          (window.innerWidth - 440) / window.innerHeight,
+          1,
+          10000
+        );
+        camera.position.set(800, 600, 1200);
+        camera.lookAt(0, 0, 0);
+
+        // **Renderer Ayarları**
+        renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth - 440, window.innerHeight);
+        renderer.shadowMap.enabled = true;
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        document
+          .getElementById("threejs-container")
+          .appendChild(renderer.domElement);
+
+        // **Zemin**
+        const groundMaterial = new THREE.MeshStandardMaterial({
+          color: 0xaaaaaa,
+          roughness: 0.8,
+          metalness: 0.3,
+        });
+        const ground = new THREE.Mesh(
+          new THREE.PlaneGeometry(5000, 5000),
+          groundMaterial
+        );
+        ground.rotation.x = -Math.PI / 2;
+        ground.receiveShadow = true;
+        ground.name = "ground";
+        scene.add(ground);
+
+        // **Ortam Işığı**
+        addLights();
+
+        // **OrbitControls (Kamera Kontrolü)**
+        controls = new THREE.OrbitControls(camera, renderer.domElement);
+        controls.minDistance = 500;
+        controls.maxDistance = 3000;
+        controls.enableDamping = true;
+        controls.dampingFactor = 0.1;
+
+        // **Animasyonu Başlat**
+        animate();
+      }
+
+      function createContainer(cont) {
+        const container = new THREE.Group();
+        const wallMaterial = new THREE.MeshPhongMaterial({
+          color: 0x3a3a3a,
+          shininess: 10
+        });
+        const wallThickness = 20;
+
+        const floor = new THREE.Mesh(
+          new THREE.BoxGeometry(cont.length, wallThickness, cont.width),
+          wallMaterial
+        );
+        floor.position.y = wallThickness / 2;
+        container.add(floor);
+
+        const ceiling = floor.clone();
+        ceiling.position.y = cont.height - wallThickness / 2;
+        container.add(ceiling);
+
+        const leftWall = new THREE.Mesh(
+          new THREE.BoxGeometry(wallThickness, cont.height, cont.width),
+          wallMaterial
+        );
+        leftWall.position.set(
+          -cont.length / 2 + wallThickness / 2,
+          cont.height / 2,
+          0
+        );
+        container.add(leftWall);
+
+        const rightWall = leftWall.clone();
+        rightWall.position.x = cont.length / 2 - wallThickness / 2;
+        container.add(rightWall);
+
+        const backWall = new THREE.Mesh(
+          new THREE.BoxGeometry(cont.length, cont.height, wallThickness),
+          wallMaterial
+        );
+        backWall.position.set(
+          0,
+          cont.height / 2,
+          -cont.width / 2 + wallThickness / 2
+        );
+        container.add(backWall);
+
+        const containerLight = new THREE.PointLight(
+          0xffffff,
+          1,
+          cont.length * 2
+        );
+        containerLight.position.set(0, cont.height / 2, 0);
+        container.add(containerLight);
+
+        container.name = "container";
+        return container;
+      }
+
+      function selectContainer(type, event) { // Add event parameter
+  selectedContainer = type;
+  scene.children = scene.children.filter(
+    (child) => child.name !== "container"
+  );
+        const container = createContainer(containers[type]);
+  scene.add(container);
+  camera.lookAt(0, containers[type].height / 2, 0);
+        if (event) {
+    document.querySelectorAll(".container-btn").forEach((btn) => 
+      btn.classList.remove("active"));
+    event.target.classList.add("active");
+  }
+}
+
+      function addPalletGroup() {
+        const group = document.createElement("div");
+        group.className = "pallet-group";
+        const randomColor ="#" + Math.floor(Math.random() * 16777215).toString(16).padStart(6, "0");
+        const groupIndex = document.querySelectorAll(".pallet-group").length + 1;
+        group.innerHTML = `
+        <div class="input-group">
+          <label> Pallet Name (optional) </label>
+          <input type="text" class="palletName" placeholder="Pallet ${groupIndex}">
+        </div>
+        <div class="input-group">
+          <label>Priority: <input type="number" class="priority-input" value="1" min="1"></label>
+          <label>Dimensions (L×W×H cm)</label>
+          <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 5px;">
+            <input type="number" class="palletLength" placeholder="Length">
+            <input type="number" class="palletWidth" placeholder="Width">
+            <input type="number" class="palletHeight" placeholder="Height">
+          </div>
+        </div>
+        <div class="input-group">
+          <label>Quantity</label>
+          <input type="number" class="palletQty" value="1">
+        </div>
+        <div class="input-group">
+          <label>Color</label>
+          <input type="color" class="palletColor" value="${randomColor}">
+        </div>
+        <div class="options-group">
+          <label><input type="checkbox" class="stackable"> Stackable</label>
+          <label><input type="checkbox" class="rotatable"> Rotatable</label>
+        </div>
+        <button class="remove-btn" onclick="removePalletGroup(this)">Remove</button>
+      `;
+        document.getElementById("palletGroups").appendChild(group);
+      }
+
+      function removePalletGroup(btn) {
+        btn.parentElement.remove();
+      }
+
+      function clearVisualization() {
+        scene.children = scene.children.filter(
+          (child) => child.name === "container" || child.name === "ground"
+        );
+        document.getElementById("result").innerHTML = "";
+      }
+
+      function toggleContainerVisibility() {
+        containerVisible = !containerVisible;
+        scene.children.forEach((child) => {
+          if (child.name === "container") child.visible = containerVisible;
+        });
+      }
+
+      function createTextLabel(text) {
+        const canvas = document.createElement("canvas");
+        const size = 256;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, size / 2.3, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255, 255, 255, 1)"; // 🔼 Tam opaklık ekledik
+        ctx.fill();
+        ctx.strokeStyle = "#000";
+        ctx.lineWidth = 5; // 🔼 Kenar çizgisi ekledik
+        ctx.stroke();
+
+        ctx.fillStyle = "#000";
+        ctx.font = "bold 48px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(text, size / 2, size / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(75, 75, 1); // Yazıyı biraz büyütelim
+        return sprite;
+      }
+
+
+      function createNumberLabel(number) {
+        const canvas = document.createElement("canvas");
+        const size = 128;
+        canvas.width = size;
+        canvas.height = size;
+        const ctx = canvas.getContext("2d");
+
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, size / 2.5, 0, Math.PI * 2);
+        ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
+        ctx.fill();
+
+        ctx.fillStyle = "#000";
+        ctx.font = "bold 48px Arial";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText(number, size / 2, size / 2);
+
+        const texture = new THREE.CanvasTexture(canvas);
+        const material = new THREE.SpriteMaterial({ map: texture });
+        const sprite = new THREE.Sprite(material);
+        sprite.scale.set(30, 30, 1);
+        return sprite;
+      }
+
+function calculate() {
+  clearVisualization();
+  resetLighting();
+  const cont = containers[selectedContainer];
+  const groups = Array.from(document.querySelectorAll(".pallet-group"));
+  let allItems = [];
+  let resultHTML = "<h3>Results:</h3>";
+  let totalUsed = 0;
+  const usedSpace = []; 
+
+        // Validate and collect items (MODIFIED ORIENTATION SORTING)
+        groups.forEach((group, groupIndex) => {
+          const nameInput = group.querySelector(".palletName").value.trim();
+          const palletName = nameInput || `Pallet ${groupIndex + 1}`;
+          let length = parseFloat(group.querySelector(".palletLength").value) || 0;
+          let width = parseFloat(group.querySelector(".palletWidth").value) || 0;
+          const height = parseFloat(group.querySelector(".palletHeight").value) || 0;
+          const quantity = parseFloat(group.querySelector(".palletQty").value) || 0;
+          const colorInput = group.querySelector(".palletColor");
+          const color = /^#[0-9A-F]{6}$/i.test(colorInput.value) ? colorInput.value : "#ff0000";
+          const stackable = group.querySelector(".stackable").checked;
+          const rotatable = group.querySelector(".rotatable").checked;
+          const priority = parseFloat(group.querySelector(".priority-input").value) || 1;
+
+          // Generate and sort orientations by smallest length first
+          let orientations = [[length, width]];
+          if (rotatable) orientations.push([width, length]);
+          orientations.sort((a, b) => a[0] - b[0]);
+
+          for (let i = 0; i < quantity; i++) {
+            allItems.push({
+              orientations, 
+              height,
+              color,
+              groupIndex,
+              stackable,
+              priority,
+              name: palletName
+            });
+          }
+        });
+		 
+
+
+        // Sort items
+        allItems.sort((a, b) => {
+          if (a.priority !== b.priority) return b.priority - a.priority;
+          const aVol =
+            Math.min(...a.orientations.map(([l, w]) => l * w)) * a.height;
+          const bVol =
+            Math.min(...b.orientations.map(([l, w]) => l * w)) * b.height;
+          return bVol - aVol;
+        });
+
+        // Place items
+        allItems.forEach((item) => {
+          let placed = false;
+          for (const [l, w] of item.orientations) {
+            const position = findBestPosition(l, w, item.height, cont, usedSpace, item.stackable);
+            if (position) {
+              placeItem(item, position, l, w);
+              totalUsed += l * w * item.height;
+              placed = true;
+              break;
+            }
+          }
+          if (!placed) {
+            resultHTML += `<div style="color: red">Couldn't place item from group ${item.groupIndex + 1}</div>`;
+          }
+        });
+        // Display results
+        groups.forEach((group, groupIndex) => {
+          const color = group.querySelector(".palletColor").value;
+          const count = usedSpace.filter(
+            (s) => s.groupIndex === groupIndex
+          ).length;
+          const total = group.querySelector(".palletQty").value;
+
+          resultHTML += `
+          <div style="border-left: 4px solid ${color}; padding-left: 10px; margin: 15px 0;">
+            <strong>Group ${groupIndex + 1}</strong>
+            <div style="color: #666; margin: 5px 0;">
+              Placed: ${count}/${total}<br>
+              Priority: ${group.querySelector(".priority-input").value}<br>
+              Color: <span style="color: ${color}">${color}</span>
+            </div>
+          </div>
+        `;
+        });
+
+        const totalSpace = cont.length * cont.width * cont.height;
+        const percentage = ((totalUsed / totalSpace) * 100).toFixed(1);
+
+        resultHTML += `
+        <div style="background: #f8f8f8; padding: 15px; border-radius: 5px; margin-top: 20px;">
+          <strong>Space Utilization:</strong><br>
+          <div style="background: linear-gradient(90deg, #4CAF50 ${percentage}%, #eee ${percentage}%); 
+            height: 20px; border-radius: 10px; margin: 10px 0;"></div>
+          ${percentage}% used (${totalUsed.toLocaleString()} cm³ / ${totalSpace.toLocaleString()} cm³)
+        </div>
+      `;
+
+        document.getElementById("result").innerHTML = resultHTML;
+
+        function findBestPosition(l, w, h, cont, usedSpace, stackable) {
+  const step = 5; // Küçük adımlarla hassas yerleştirme
+
+  // Stackable olanları önce mevcut istiflere eklemeye çalış
+  if (stackable) {
+    const existingColumns = [];
+
+    // Mevcut stackable istifleri analiz et
+    usedSpace.forEach(space => {
+      if (space.stackable) {
+        const key = `${space.containerX}-${space.containerY}-${space.l}-${space.w}`;
+        if (!existingColumns.some(col => col.key === key)) {
+          existingColumns.push({
+            x: space.containerX,
+            y: space.containerY,
+            l: space.l,
+            w: space.w,
+            maxZ: space.containerZ + space.h
+          });
+        }
+      }
+    });
+
+    // Önce mevcut stackable alanlara eklemeyi dene
+    for (const column of existingColumns) {
+      if (l === column.l && w === column.w) { // Boyutları eşleşen istifi bul
+        if (column.maxZ + h <= cont.height) {
+          const position = {
+            x: column.x + l / 2 - cont.length / 2,
+            y: column.maxZ + h / 2,
+            z: column.y + w / 2 - cont.width / 2,
+            containerX: column.x,
+            containerY: column.y,
+            containerZ: column.maxZ
+          };
+
+          if (!isColliding(position, l, w, h, usedSpace)) {
+            return position;
+          }
+        }
+      }
+    }
+  }
+
+  // Eğer mevcut stackable istif yoksa, yeni bir yer bul
+  for (let x = 0; x <= cont.length - l; x += step) {
+    for (let y = 0; y <= cont.width - w; y += step) {
+      let maxZ = 0;
+      let validPlacement = true;
+
+      // Alanın altındaki en yüksek noktayı bul
+      usedSpace.forEach(space => {
+        if (x < space.containerX + space.l &&
+            x + l > space.containerX &&
+            y < space.containerY + space.w &&
+            y + w > space.containerY) {
+          maxZ = Math.max(maxZ, space.containerZ + space.h);
+
+          // Eğer alttaki palet stackable değilse ve üstüne ekleme yapmaya çalışıyorsak, yerleştirme geçersiz olmalı
+          if (!space.stackable) {
+            validPlacement = false;
+          }
+        }
+      });
+
+      // Stackable olmayan bir paletin üstüne koyulamaz!
+      if (!validPlacement) continue;
+
+      if (maxZ + h <= cont.height) {
+        const position = {
+          x: x + l / 2 - cont.length / 2,
+          y: maxZ + h / 2,
+          z: y + w / 2 - cont.width / 2,
+          containerX: x,
+          containerY: y,
+          containerZ: maxZ
+        };
+
+        if (!isColliding(position, l, w, h, usedSpace)) {
+          return position;
+        }
+      }
+    }
+  }
+
+  return null;
+}
+
+
+        function isColliding(pos, l, w, h, usedSpace) {
+    return usedSpace.some(space => {
+      // Use container-space coordinates for accurate collision detection
+      const spaceX1 = space.containerX;
+      const spaceX2 = space.containerX + space.l;
+      const spaceY1 = space.containerY;
+      const spaceY2 = space.containerY + space.w;
+      const spaceZ1 = space.containerZ;
+      const spaceZ2 = space.containerZ + space.h;
+
+      const itemX1 = pos.containerX;
+      const itemX2 = pos.containerX + l;
+      const itemY1 = pos.containerY;
+      const itemY2 = pos.containerY + w;
+      const itemZ1 = pos.containerZ;
+      const itemZ2 = pos.containerZ + h;
+
+      // Check for overlap in all dimensions
+      return (
+        itemX1 < spaceX2 &&
+        itemX2 > spaceX1 &&
+        itemY1 < spaceY2 &&
+        itemY2 > spaceY1 &&
+        itemZ1 < spaceZ2 &&
+        itemZ2 > spaceZ1
+      );
+    });
+  }
+
+  function placeItem(item, position, l, w) {
+  const pallet = new THREE.Mesh(
+    new THREE.BoxGeometry(l, item.height, w),
+    new THREE.MeshPhongMaterial({
+      color: item.color,
+      transparent: true,
+      opacity: 0.8,
+    })
+  );
+  pallet.position.set(position.x, position.y, position.z);
+  scene.add(pallet);
+
+  const label = createTextLabel(item.name);
+  label.position.copy(pallet.position);
+  label.position.y += item.height / 2 + 10;
+  scene.add(label);
+
+  // Kullanılan alana stackable bilgisini ekleyelim
+  usedSpace.push({
+    containerX: position.containerX,
+    containerY: position.containerY,
+    containerZ: position.containerZ,
+    l: l,
+    w: w,
+    h: item.height,
+    stackable: item.stackable,  // BU BİLGİYİ EKLEDİK
+    groupIndex: item.groupIndex
+  });
+}
+
+  }
+      function animate() {
+        requestAnimationFrame(animate);
+        controls.update();
+        renderer.render(scene, camera);
+      }
+      window.onresize = () => {
+        camera.aspect = (window.innerWidth - 440) / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth - 440, window.innerHeight);
+      };
+
+      function resetLighting() {
+        // Önce sahnedeki tüm ışıkları kaldır
+        scene.children = scene.children.filter(child => !(child.isLight));
+
+        // Yeni ışıkları ekleyelim
+        addLights();
+      }
+
+
+      function addLights() {
+    // **Ortam Işığı (Ambient Light) - Tüm sahneyi yumuşak bir şekilde aydınlatır**
+    const ambientLight = new THREE.AmbientLight(0xffffff, 1.5); // Daha güçlü ışık
+    scene.add(ambientLight);
+
+    // **Yön Işığı (Directional Light) - Güneş ışığı gibi genel bir ışık**
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 1.8);
+    directionalLight.position.set(500, 1000, 500);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+
+    // **Konum Işığı (Point Light) - Konteyner içini aydınlatır**
+    const pointLight = new THREE.PointLight(0xffffff, 2.0, 4000);
+    pointLight.position.set(0, 200, 0);
+    pointLight.castShadow = true;
+    scene.add(pointLight);
+
+    // **Spot Işık (SpotLight) - Konteynerin içine daha fazla ışık ekler**
+    const spotLight = new THREE.SpotLight(0xffffff, 2.5, 4000, Math.PI / 4, 0.3);
+    spotLight.position.set(0, 500, 0);
+    spotLight.target.position.set(0, 0, 0);
+    spotLight.castShadow = true;
+    scene.add(spotLight);
+    scene.add(spotLight.target);
+}
+
+
+      initThreeJS();
+      selectContainer("20dc");
+    </script>
+  </body>
+</html>
